@@ -204,7 +204,7 @@ SfbQueueDisc::SfbHash (Ptr<QueueDiscItem> item)
 bool
 SfbQueueDisc::RateLimit (Ptr<QueueDiscItem> item)
 {
-  /*NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this);
   if (m_penaltyRate == 0 || m_penaltyBurst == 0)
     {
       return true;
@@ -228,7 +228,7 @@ SfbQueueDisc::RateLimit (Ptr<QueueDiscItem> item)
     }
 
   m_tokenAvail--;
-*/
+
   return false;
 }
 
