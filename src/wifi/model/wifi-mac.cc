@@ -19,7 +19,6 @@
  */
 
 #include "wifi-mac.h"
-#include "dcf.h"
 #include "ns3/log.h"
 
 namespace ns3 {
@@ -190,7 +189,7 @@ WifiMac::GetTypeId (void)
                    MakeTimeAccessor (&WifiMac::SetPifs,
                                      &WifiMac::GetPifs),
                    MakeTimeChecker ())
-    .AddAttribute ("Rifs", "The value of the RIFS constant (not supported yet!).",
+    .AddAttribute ("Rifs", "The value of the RIFS constant.",
                    TimeValue (GetDefaultRifs ()),
                    MakeTimeAccessor (&WifiMac::SetRifs,
                                      &WifiMac::GetRifs),
@@ -210,7 +209,7 @@ WifiMac::GetTypeId (void)
                      MakeTraceSourceAccessor (&WifiMac::m_macTxTrace),
                      "ns3::Packet::TracedCallback")
     .AddTraceSource ("MacTxDrop",
-                     "A packet has been dropped in the MAC layer before being queued for transmission.",
+                     "A packet has been dropped in the MAC layer before transmission.",
                      MakeTraceSourceAccessor (&WifiMac::m_macTxDropTrace),
                      "ns3::Packet::TracedCallback")
     .AddTraceSource ("MacPromiscRx",
@@ -319,6 +318,12 @@ WifiMac::ConfigureStandard (WifiPhyStandard standard)
     case WIFI_PHY_STANDARD_80211ac:
       Configure80211ac ();
       break;
+    case WIFI_PHY_STANDARD_80211ax_2_4GHZ:
+      Configure80211ax_2_4Ghz ();
+      break;
+    case WIFI_PHY_STANDARD_80211ax_5GHZ:
+      Configure80211ax_5Ghz ();
+      break;
     case WIFI_PHY_STANDARD_UNSPECIFIED:
     default:
       NS_FATAL_ERROR ("Wifi standard not found");
@@ -418,7 +423,21 @@ WifiMac::Configure80211ac (void)
 }
 
 void
-WifiMac::ConfigureDcf (Ptr<Dcf> dcf, uint32_t cwmin, uint32_t cwmax, bool isDsss, AcIndex ac)
+WifiMac::Configure80211ax_2_4Ghz (void)
+{
+  NS_LOG_FUNCTION (this);
+  Configure80211n_2_4Ghz ();
+}
+
+void
+WifiMac::Configure80211ax_5Ghz (void)
+{
+  NS_LOG_FUNCTION (this);
+  Configure80211ac ();
+}
+
+void
+WifiMac::ConfigureDcf (Ptr<DcaTxop> dcf, uint32_t cwmin, uint32_t cwmax, bool isDsss, AcIndex ac)
 {
   NS_LOG_FUNCTION (this << dcf << cwmin << cwmax << isDsss << ac);
   /* see IEE802.11 section 7.3.2.29 */

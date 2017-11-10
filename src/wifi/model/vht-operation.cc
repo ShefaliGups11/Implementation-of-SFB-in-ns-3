@@ -163,16 +163,32 @@ VhtOperation::DeserializeInformationField (Buffer::Iterator start, uint8_t lengt
 
 ATTRIBUTE_HELPER_CPP (VhtOperation);
 
+/**
+ * output stream output operator
+ *
+ * \param os output stream
+ * \param VhtOperation
+ *
+ * \returns output stream
+ */
 std::ostream &
 operator << (std::ostream &os, const VhtOperation &VhtOperation)
 {
-  os << VhtOperation.GetChannelWidth () << "|"
-     << VhtOperation.GetChannelCenterFrequencySegment0 () << "|"
-     << VhtOperation.GetChannelCenterFrequencySegment1 () << "|"
+  os << (uint16_t) VhtOperation.GetChannelWidth () << "|"
+     << (uint16_t) VhtOperation.GetChannelCenterFrequencySegment0 () << "|"
+     << (uint16_t) VhtOperation.GetChannelCenterFrequencySegment1 () << "|"
      << VhtOperation.GetBasicVhtMcsAndNssSet ();
   return os;
 }
 
+/**
+ * input stream input operator
+ *
+ * \param is input stream
+ * \param VhtOperation
+ *
+ * \returns input stream
+ */
 std::istream &operator >> (std::istream &is, VhtOperation &VhtOperation)
 {
   uint8_t c1, c2, c3;

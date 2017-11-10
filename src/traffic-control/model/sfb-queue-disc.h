@@ -41,7 +41,7 @@ namespace ns3 {
 
 class UniformRandomVariable;
 
-class SFBQueueDisc : public QueueDisc
+class SfbQueueDisc : public QueueDisc
 {
 public:
   /**
@@ -51,23 +51,14 @@ public:
   static TypeId GetTypeId (void);
 
   /**
-   * \brief SFBQueueDisc Constructor
+   * \brief SfbQueueDisc Constructor
    */
-  SFBQueueDisc ();
+  SfbQueueDisc ();
 
   /**
-   * \brief SFBQueueDisc Destructor
+   * \brief SfbQueueDisc Destructor
    */
-  virtual ~SFBQueueDisc ();
-
-  /**
-   * \brief Stats
-   */
-  typedef struct
-  {
-    uint32_t unforcedDrop;      //!< Early probability drops: proactive
-    uint32_t forcedDrop;        //!< Drops due to queue limit: reactive
-  } Stats;
+  virtual ~SfbQueueDisc ();
 
   /**
    * \brief Bin
@@ -76,21 +67,43 @@ public:
   {
     double pmark;
     uint32_t packets;
-  } Bin;
+  } Bin_t;
+
+  typedef struct
+  {
+    uint32_t   perturbation;     /* jhash perturbation */
+    Bin_t      bins[SFB_LEVELS][SFB_BINS];
+  } SfbBins_t;
 
   /**
-   * \brief Set the operating mode of this queue.
+   * \brief Enumeration of the modes supported in the class.
    *
-   * \param mode The operating mode of this queue.
    */
-  void SetMode (Queue::QueueMode mode);
+  enum QueueDiscMode
+  {
+    QUEUE_DISC_MODE_PACKETS,     /**< Use number of packets for maximum queue disc size */
+    QUEUE_DISC_MODE_BYTES,       /**< Use number of bytes for maximum queue disc size */
+  };
+
+// Reasons for dropping packets
+  static constexpr const char* TARGET_EXCED_DROP = "Target exceeded drop";  //!< above target
+  static constexpr const char* OVERLIMIT_DROP = "Overlimit drop";  //!< Overlimit dropped packet
+  static constexpr const char* RATELIMIT_DROP = "Ratelimit drop";  //!< Overlimit dropped packet
+  static constexpr const char* BUCKETLIMIT_DROP = "Bucketlimit drop";  //!< Overlimit dropped packet
 
   /**
-   * \brief Get the encapsulation mode of this queue.
+   * \brief Set the operating mode of this queue disc.
    *
-   * \returns The encapsulation mode of this queue.
+   * \param mode The operating mode of this queue disc.
    */
-  Queue::QueueMode GetMode (void);
+  void SetMode (QueueDiscMode mode);
+
+  /**
+   * \brief Get the operating mode of this queue disc.
+   *
+   * \returns The operating mode of this queue disc.
+   */
+  QueueDiscMode GetMode (void);
 
   /**
    * \brief Get the current value of the queue in bytes or packets.
@@ -105,13 +118,6 @@ public:
    * \param lim The limit in bytes or packets.
    */
   void SetQueueLimit (uint32_t lim);
-
-  /**
-   * \brief Get SFB statistics after running.
-   *
-   * \returns The drop statistics.
-   */
-  Stats GetStats ();
 
   /**
    * Assign a fixed random variable stream number to the random variables
@@ -133,24 +139,22 @@ protected:
    * \brief Initialize the queue parameters.
    */
   virtual void InitializeParams (void);
-
-  /**
-   * \brief Initialize the Bins parameters.
-   */
-  virtual void InitializeBins (void);
-
   virtual bool DoEnqueue (Ptr<QueueDiscItem> item);
-  virtual double GetMinProbability (Ptr<QueueDiscItem> item);
-  virtual void IncrementBinsQueueLength (Ptr<QueueDiscItem> item);
-  virtual void IncrementBinsPmarks (Ptr<QueueDiscItem> item);
-  virtual void IncrementBinPmark (uint32_t i, uint32_t j);
-  virtual void DecrementBinsQueueLength (Ptr<QueueDiscItem> item);
-  virtual void DecrementBinPmark (uint32_t i, uint32_t j);
-
   virtual Ptr<QueueDiscItem> DoDequeue (void);
   virtual Ptr<const QueueDiscItem> DoPeek (void) const;
   virtual bool CheckConfig (void);
 
+
+private:
+  void InitializeBins (void);
+  double GetMinProbability (Ptr<QueueDiscItem> item);
+  void IncrementBinsQueueLength (Ptr<QueueDiscItem> item);
+  void IncrementBinsPmarks (Ptr<QueueDiscItem> item);
+  void IncrementBinPmark (uint32_t i, uint32_t j);
+  void DecrementBinsQueueLength (Ptr<QueueDiscItem> item);
+  void DecrementBinPmark (uint32_t i, uint32_t j);
+  uint32_t SfbHash (Ptr<QueueDiscItem> item);
+  bool RateLimit (Ptr<QueueDiscItem> item);
 
   /**
    * \brief Check if a packet needs to be dropped due to probability drop
@@ -158,27 +162,31 @@ protected:
    */
   virtual bool DropEarly (Ptr<QueueDiscItem> item);
 
-private:
 
-//  static const uint32_t SFB_BUCKET_SHIFT = 4;
-//  static const uint32_t SFB_BINS = (1 << SFB_BUCKET_SHIFT); /* N bins per Level */
-//  static const uint32_t SFB_BUCKET_MASK = (SFB_BINS - 1);
-//  static const uint32_t SFB_LEVELS = (32 / SFB_BUCKET_SHIFT); /* L */
-
-  Queue::QueueMode m_mode;                      //!< Mode (bytes or packets)
-  uint32_t m_queueLimit;                        //!< Queue limit in bytes / packets
-  Stats m_stats;                                //!< BLUE statistics
   Ptr<UniformRandomVariable> m_uv;              //!< Rng stream
+  Ptr<UniformRandomVariable> m_pertbUV;         //!< Rng stream
 
   // ** Variables supplied by user
+  QueueDiscMode m_mode;                      //!< Mode (bytes or packets)
+  uint32_t m_queueLimit;                        //!< Queue limit in bytes / packets
   uint32_t m_meanPktSize;                       //!< Average Packet Size
   double m_increment;                           //!< increment value for marking probability
   double m_decrement;                           //!< decrement value for marking probability
   double m_freezeTime;
+  Time   m_rehashInterval;                              //!<Time interval after which hash willbe changed
+  uint32_t m_penaltyRate;                         //!<Panelty rate in packets per second
+  uint32_t m_penaltyBurst;                        //!<Panelty burst in packets
+  uint32_t m_tokenAvail; // Added now
+  Time     m_tokenTime; // added now
+  Time     m_interval;
+  double   m_targetFraction;
 
   // ** Variables maintained by SFB
-  Bin m_bins[SFB_LEVELS][SFB_BINS];
   uint32_t m_binSize;
+  Time   m_lastSet;                             //!< Last time rehash was changed
+  SfbBins_t m_bins;
+  uint32_t m_bucketLimit;                          //!Bucket limit
+  uint32_t m_target;
 };
 
 } // namespace ns3

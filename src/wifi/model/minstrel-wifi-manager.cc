@@ -83,11 +83,17 @@ MinstrelWifiManager::GetTypeId (void)
                    BooleanValue (false),
                    MakeBooleanAccessor (&MinstrelWifiManager::m_printStats),
                    MakeBooleanChecker ())
+    .AddTraceSource ("Rate",
+                     "Traced value for rate changes (b/s)",
+                     MakeTraceSourceAccessor (&MinstrelWifiManager::m_currentRate),
+                     "ns3::TracedValueCallback::Uint64")
   ;
   return tid;
 }
 
 MinstrelWifiManager::MinstrelWifiManager ()
+  : WifiRemoteStationManager (),
+    m_currentRate (0)
 {
   NS_LOG_FUNCTION (this);
   m_uniformRandomVariable = CreateObject<UniformRandomVariable> ();
@@ -99,7 +105,7 @@ MinstrelWifiManager::~MinstrelWifiManager ()
 }
 
 void
-MinstrelWifiManager::SetupPhy (Ptr<WifiPhy> phy)
+MinstrelWifiManager::SetupPhy (const Ptr<WifiPhy> phy)
 {
   NS_LOG_FUNCTION (this << phy);
   uint32_t nModes = phy->GetNModes ();
@@ -115,7 +121,7 @@ MinstrelWifiManager::SetupPhy (Ptr<WifiPhy> phy)
 }
 
 void
-MinstrelWifiManager::SetupMac (Ptr<WifiMac> mac)
+MinstrelWifiManager::SetupMac (const Ptr<WifiMac> mac)
 {
   NS_LOG_FUNCTION (this << mac);
   WifiRemoteStationManager::SetupMac (mac);
@@ -360,7 +366,12 @@ MinstrelWifiManager::GetDataTxVector (MinstrelWifiRemoteStation *station)
       station->m_txrate = station->m_nModes / 2;
     }
   WifiMode mode = GetSupported (station, station->m_txrate);
-  return WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), false, 1, 1, 0, channelWidth, GetAggregation (station), false);
+  if (m_currentRate != mode.GetDataRate (channelWidth))
+    {
+      NS_LOG_DEBUG ("New datarate: " << mode.GetDataRate (channelWidth));
+      m_currentRate = mode.GetDataRate (channelWidth);
+    }
+  return WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), 800, 1, 1, 0, channelWidth, GetAggregation (station), false);
 }
 
 WifiTxVector
@@ -384,7 +395,7 @@ MinstrelWifiManager::GetRtsTxVector (MinstrelWifiRemoteStation *station)
     {
       mode = GetNonErpSupported (station, 0);
     }
-  rtsTxVector = WifiTxVector (mode, GetDefaultTxPowerLevel (), GetShortRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), false, 1, 1, 0, channelWidth, GetAggregation (station), false);
+  rtsTxVector = WifiTxVector (mode, GetDefaultTxPowerLevel (), GetShortRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), 800, 1, 1, 0, channelWidth, GetAggregation (station), false);
   return rtsTxVector;
 }
 
@@ -1072,7 +1083,6 @@ MinstrelWifiManager::PrintTable (MinstrelWifiRemoteStation *station)
   station->m_statsFile.flush ();
 }
 
-
 void
 MinstrelWifiManager::SetHtSupported (bool enable)
 {
@@ -1090,6 +1100,16 @@ MinstrelWifiManager::SetVhtSupported (bool enable)
   if (enable)
     {
       NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support VHT rates");
+    }
+}
+
+void
+MinstrelWifiManager::SetHeSupported (bool enable)
+{
+  //HE is not supported by this algorithm.
+  if (enable)
+    {
+      NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support HE rates");
     }
 }
 

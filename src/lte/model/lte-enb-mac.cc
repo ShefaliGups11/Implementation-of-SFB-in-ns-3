@@ -38,6 +38,7 @@
 #include <ns3/lte-ue-phy.h>
 
 #include "ns3/lte-mac-sap.h"
+#include "ns3/lte-enb-cmac-sap.h"
 #include <ns3/lte-common.h>
 
 
@@ -54,9 +55,15 @@ NS_OBJECT_ENSURE_REGISTERED (LteEnbMac);
 // //////////////////////////////////////
 
 
+/// EnbMacMemberLteEnbCmacSapProvider class
 class EnbMacMemberLteEnbCmacSapProvider : public LteEnbCmacSapProvider
 {
 public:
+  /**
+   * Constructor
+   *
+   * \param mac the MAC
+   */
   EnbMacMemberLteEnbCmacSapProvider (LteEnbMac* mac);
 
   // inherited from LteEnbCmacSapProvider
@@ -72,7 +79,7 @@ public:
   
 
 private:
-  LteEnbMac* m_mac;
+  LteEnbMac* m_mac; ///< the MAC
 };
 
 
@@ -136,16 +143,22 @@ EnbMacMemberLteEnbCmacSapProvider::AllocateNcRaPreamble (uint16_t rnti)
 }
 
 
+/// EnbMacMemberFfMacSchedSapUser class
 class EnbMacMemberFfMacSchedSapUser : public FfMacSchedSapUser
 {
 public:
+  /**
+   * Constructor
+   * 
+   * \param mac the MAC
+   */
   EnbMacMemberFfMacSchedSapUser (LteEnbMac* mac);
 
 
   virtual void SchedDlConfigInd (const struct SchedDlConfigIndParameters& params);
   virtual void SchedUlConfigInd (const struct SchedUlConfigIndParameters& params);
 private:
-  LteEnbMac* m_mac;
+  LteEnbMac* m_mac; ///< the MAC
 };
 
 
@@ -170,10 +183,15 @@ EnbMacMemberFfMacSchedSapUser::SchedUlConfigInd (const struct SchedUlConfigIndPa
 }
 
 
-
+/// EnbMacMemberFfMacCschedSapUser class
 class EnbMacMemberFfMacCschedSapUser : public FfMacCschedSapUser
 {
 public:
+  /**
+   * Constructor
+   *
+   * \param mac the MAC
+   */
   EnbMacMemberFfMacCschedSapUser (LteEnbMac* mac);
 
   virtual void CschedCellConfigCnf (const struct CschedCellConfigCnfParameters& params);
@@ -185,7 +203,7 @@ public:
   virtual void CschedCellConfigUpdateInd (const struct CschedCellConfigUpdateIndParameters& params);
 
 private:
-  LteEnbMac* m_mac;
+  LteEnbMac* m_mac; ///< the MAC
 };
 
 
@@ -238,12 +256,15 @@ EnbMacMemberFfMacCschedSapUser::CschedCellConfigUpdateInd (const struct CschedCe
 
 
 
-// ---------- PHY-SAP
-
-
+/// ---------- PHY-SAP
 class EnbMacMemberLteEnbPhySapUser : public LteEnbPhySapUser
 {
 public:
+  /**
+   * Constructor
+   *
+   * \param mac the MAC
+   */
   EnbMacMemberLteEnbPhySapUser (LteEnbMac* mac);
 
   // inherited from LteEnbPhySapUser
@@ -256,7 +277,7 @@ public:
   virtual void DlInfoListElementHarqFeeback (DlInfoListElement_s params);
 
 private:
-  LteEnbMac* m_mac;
+  LteEnbMac* m_mac; ///< the MAC
 };
 
 EnbMacMemberLteEnbPhySapUser::EnbMacMemberLteEnbPhySapUser (LteEnbMac* mac) : m_mac (mac)
@@ -353,7 +374,8 @@ LteEnbMac::GetTypeId (void)
 }
 
 
-LteEnbMac::LteEnbMac ()
+LteEnbMac::LteEnbMac ():
+m_ccmMacSapUser (0)
 {
   NS_LOG_FUNCTION (this);
   m_macSapProvider = new EnbMacMemberLteMacSapProvider<LteEnbMac> (this);
@@ -361,6 +383,7 @@ LteEnbMac::LteEnbMac ()
   m_schedSapUser = new EnbMacMemberFfMacSchedSapUser (this);
   m_cschedSapUser = new EnbMacMemberFfMacCschedSapUser (this);
   m_enbPhySapUser = new EnbMacMemberLteEnbPhySapUser (this);
+  m_ccmMacSapProvider = new MemberLteCcmMacSapProvider<LteEnbMac> (this);
 }
 
 
@@ -384,6 +407,7 @@ LteEnbMac::DoDispose ()
   delete m_schedSapUser;
   delete m_cschedSapUser;
   delete m_enbPhySapUser;
+  delete m_ccmMacSapProvider;
 }
 
 void
@@ -455,7 +479,18 @@ LteEnbMac::GetLteEnbPhySapUser ()
   return m_enbPhySapUser;
 }
 
+void
+LteEnbMac::SetLteCcmMacSapUser (LteCcmMacSapUser* s)
+{
+  m_ccmMacSapUser = s;
+}
 
+
+LteCcmMacSapProvider*
+LteEnbMac::GetLteCcmMacSapProvider ()
+{
+  return m_ccmMacSapProvider;
+}
 
 void
 LteEnbMac::DoSubframeIndication (uint32_t frameNo, uint32_t subframeNo)
@@ -473,12 +508,6 @@ LteEnbMac::DoSubframeIndication (uint32_t frameNo, uint32_t subframeNo)
     {
       FfMacSchedSapProvider::SchedDlCqiInfoReqParameters dlcqiInfoReq;
       dlcqiInfoReq.m_sfnSf = ((0x3FF & frameNo) << 4) | (0xF & subframeNo);
-
-      int cqiNum = m_dlCqiReceived.size ();
-      if (cqiNum > MAX_CQI_LIST)
-        {
-          cqiNum = MAX_CQI_LIST;
-        }
       dlcqiInfoReq.m_cqiList.insert (dlcqiInfoReq.m_cqiList.begin (), m_dlCqiReceived.begin (), m_dlCqiReceived.end ());
       m_dlCqiReceived.erase (m_dlCqiReceived.begin (), m_dlCqiReceived.end ());
       m_schedSapProvider->SchedDlCqiInfoReq (dlcqiInfoReq);
@@ -676,8 +705,17 @@ void
 LteEnbMac::ReceiveBsrMessage  (MacCeListElement_s bsr)
 {
   NS_LOG_FUNCTION (this);
+  m_ccmMacSapUser->UlReceiveMacCe (bsr, m_componentCarrierId);
+}
 
-  m_ulCeReceived.push_back (bsr);
+void
+LteEnbMac::DoReportMacCeToScheduler (MacCeListElement_s bsr)
+{
+  NS_LOG_FUNCTION (this);
+  NS_LOG_DEBUG (this << " bsr Size " << (uint16_t) m_ulCeReceived.size ());
+  //send to LteCcmMacSapUser
+  m_ulCeReceived.push_back (bsr); // this to called when LteUlCcmSapProvider::ReportMacCeToScheduler is called
+  NS_LOG_DEBUG (this << " bsr Size after push_back " << (uint16_t) m_ulCeReceived.size ());
 }
 
 

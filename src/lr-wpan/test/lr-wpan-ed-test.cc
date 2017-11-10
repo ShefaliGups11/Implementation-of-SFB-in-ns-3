@@ -34,8 +34,6 @@
 
 using namespace ns3;
 
-using namespace ns3;
-
 NS_LOG_COMPONENT_DEFINE ("lr-wpan-energy-detection-test");
 
 /**
@@ -272,4 +270,4 @@ LrWpanEdTestSuite::LrWpanEdTestSuite ()
   AddTestCase (new LrWpanEdTestCase, TestCase::QUICK);
 }
 
-static LrWpanEdTestSuite g_lrWpanEdTestSuite;
+static LrWpanEdTestSuite g_lrWpanEdTestSuite; //!< Static variable for test initialization

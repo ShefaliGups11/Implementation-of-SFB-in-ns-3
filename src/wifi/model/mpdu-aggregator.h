@@ -45,6 +45,10 @@ public:
    */
   typedef std::list<std::pair<Ptr<Packet>, AmpduSubframeHeader> >::const_iterator DeaggregatedMpdusCI;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId (void);
 
   /**
@@ -72,13 +76,20 @@ public:
    */
   virtual bool Aggregate (Ptr<const Packet> packet, Ptr<Packet> aggregatedPacket) const = 0;
   /**
-  * This method performs a VHT single MPDU aggregation.
-  */
-  virtual void AggregateVhtSingleMpdu (Ptr<const Packet> packet, Ptr<Packet> aggregatedPacket) const = 0;
+   * \param packet the packet we want to insert into <i>aggregatedPacket</i>.
+   * \param aggregatedPacket packet that will contain the packet of size <i>packetSize</i>, if aggregation is possible.
+   *
+   * This method performs a VHT/HE single MPDU aggregation.
+   */
+  virtual void AggregateSingleMpdu (Ptr<const Packet> packet, Ptr<Packet> aggregatedPacket) const = 0;
   /**
+   * \param packet the packet we want to insert into <i>aggregatedPacket</i>.
+   * \param last true if it is the last packet.
+   * \param isSingleMpdu true if it is a single MPDU
+   *
    * Adds A-MPDU subframe header and padding to each MPDU that is part of an A-MPDU before it is sent.
    */
-  virtual void AddHeaderAndPad (Ptr<Packet> packet, bool last, bool vhtSingleMpdu) const = 0;
+  virtual void AddHeaderAndPad (Ptr<Packet> packet, bool last, bool isSingleMpdu) const = 0;
   /**
    * \param packetSize size of the packet we want to insert into <i>aggregatedPacket</i>.
    * \param aggregatedPacket packet that will contain the packet of size <i>packetSize</i>, if aggregation is possible.
@@ -90,6 +101,7 @@ public:
    */
   virtual bool CanBeAggregated (uint32_t packetSize, Ptr<Packet> aggregatedPacket, uint8_t blockAckSize) const = 0;
   /**
+   * \param packet the Packet
    * \return padding that must be added to the end of an aggregated packet
    *
    * Calculates how much padding must be added to the end of an aggregated packet, after that a new packet is added.
@@ -99,6 +111,7 @@ public:
   /**
    * Deaggregates an A-MPDU by removing the A-MPDU subframe header and padding.
    *
+   * \param aggregatedPacket the aggregated packet
    * \return list of deaggragted packets and their A-MPDU subframe headers
    */
   static DeaggregatedMpdus Deaggregate (Ptr<Packet> aggregatedPacket);

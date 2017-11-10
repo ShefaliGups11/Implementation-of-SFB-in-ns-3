@@ -74,16 +74,6 @@ TypeId LteUeNetDevice::GetTypeId (void)
                    PointerValue (),
                    MakePointerAccessor (&LteUeNetDevice::m_rrc),
                    MakePointerChecker <LteUeRrc> ())
-    .AddAttribute ("LteUeMac",
-                   "The MAC associated to this UeNetDevice",
-                   PointerValue (),
-                   MakePointerAccessor (&LteUeNetDevice::m_mac),
-                   MakePointerChecker <LteUeMac> ())
-    .AddAttribute ("LteUePhy",
-                   "The PHY associated to this UeNetDevice",
-                   PointerValue (),
-                   MakePointerAccessor (&LteUeNetDevice::m_phy),
-                   MakePointerChecker <LteUePhy> ())
     .AddAttribute ("LteUeComponentCarrierManager",
                    "The ComponentCarrierManager associated to this UeNetDevice",
                    PointerValue (),
@@ -136,14 +126,17 @@ LteUeNetDevice::DoDispose (void)
 {
   NS_LOG_FUNCTION (this);
   m_targetEnb = 0;
-  m_mac->Dispose ();
-  m_mac = 0;
+
   m_rrc->Dispose ();
   m_rrc = 0;
-  m_phy->Dispose ();
-  m_phy = 0;
+  
   m_nas->Dispose ();
   m_nas = 0;
+  for (uint32_t i = 0; i < m_ccMap.size (); i++)
+    {
+      m_ccMap.at (i)->Dispose ();
+    }
+  m_componentCarrierManager->Dispose ();
   LteNetDevice::DoDispose ();
 }
 
@@ -175,7 +168,7 @@ Ptr<LteUeMac>
 LteUeNetDevice::GetMac (void) const
 {
   NS_LOG_FUNCTION (this);
-  return m_mac;
+  return m_ccMap.at (0)->GetMac ();
 }
 
 
@@ -191,7 +184,14 @@ Ptr<LteUePhy>
 LteUeNetDevice::GetPhy (void) const
 {
   NS_LOG_FUNCTION (this);
-  return m_phy;
+  return m_ccMap.at (0)->GetPhy ();
+}
+
+Ptr<LteUeComponentCarrierManager>
+LteUeNetDevice::GetComponentCarrierManager (void) const
+{
+  NS_LOG_FUNCTION (this);
+  return m_componentCarrierManager;
 }
 
 Ptr<EpcUeNas>
@@ -270,8 +270,13 @@ LteUeNetDevice::DoInitialize (void)
   NS_LOG_FUNCTION (this);
   m_isConstructed = true;
   UpdateConfig ();
-  m_phy->Initialize ();
-  m_mac->Initialize ();
+
+  std::map< uint8_t, Ptr<ComponentCarrierUe> >::iterator it;
+  for (it = m_ccMap.begin (); it != m_ccMap.end (); ++it)
+    {
+      it->second->GetPhy ()->Initialize ();
+      it->second->GetMac ()->Initialize ();
+    }
   m_rrc->Initialize ();
 }
 
@@ -281,7 +286,7 @@ LteUeNetDevice::Send (Ptr<Packet> packet, const Address& dest, uint16_t protocol
   NS_LOG_FUNCTION (this << dest << protocolNumber);
   if (protocolNumber != Ipv4L3Protocol::PROT_NUMBER)
     {
-      NS_LOG_INFO("unsupported protocol " << protocolNumber << ", only IPv4 is supported");
+      NS_LOG_INFO ("unsupported protocol " << protocolNumber << ", only IPv4 is supported");
       return true;
     }  
   return m_nas->Send (packet);

@@ -27,65 +27,91 @@
 #include "ns3/abort.h"
 #include "sfb-queue-disc.h"
 #include "ns3/ipv4-packet-filter.h"
+#include "ns3/ipv6-packet-filter.h"
 #include "ns3/drop-tail-queue.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("SFBQueueDisc");
+NS_LOG_COMPONENT_DEFINE ("SfbQueueDisc");
 
-NS_OBJECT_ENSURE_REGISTERED (SFBQueueDisc);
+NS_OBJECT_ENSURE_REGISTERED (SfbQueueDisc);
 
-TypeId SFBQueueDisc::GetTypeId (void)
+TypeId SfbQueueDisc::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::SFBQueueDisc")
+  static TypeId tid = TypeId ("ns3::SfbQueueDisc")
     .SetParent<QueueDisc> ()
     .SetGroupName ("TrafficControl")
-    .AddConstructor<SFBQueueDisc> ()
+    .AddConstructor<SfbQueueDisc> ()
     .AddAttribute ("Mode",
                    "Determines unit for QueueLimit",
-                   EnumValue (Queue::QUEUE_MODE_PACKETS),
-                   MakeEnumAccessor (&SFBQueueDisc::SetMode),
-                   MakeEnumChecker (Queue::QUEUE_MODE_BYTES, "QUEUE_MODE_BYTES",
-                                    Queue::QUEUE_MODE_PACKETS, "QUEUE_MODE_PACKETS"))
+                   EnumValue (QUEUE_DISC_MODE_BYTES),
+                   MakeEnumAccessor (&SfbQueueDisc::SetMode),
+                   MakeEnumChecker (QUEUE_DISC_MODE_BYTES, "QUEUE_MODE_BYTES",
+                                    QUEUE_DISC_MODE_PACKETS, "QUEUE_MODE_PACKETS"))
     .AddAttribute ("QueueLimit",
                    "Queue limit in bytes/packets",
                    UintegerValue (25),
-                   MakeUintegerAccessor (&SFBQueueDisc::SetQueueLimit),
+                   MakeUintegerAccessor (&SfbQueueDisc::SetQueueLimit),
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("MeanPktSize",
                    "Average of packet size",
                    UintegerValue (1000),
-                   MakeUintegerAccessor (&SFBQueueDisc::m_meanPktSize),
+                   MakeUintegerAccessor (&SfbQueueDisc::m_meanPktSize),
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("Increment",
                    "Pmark increment value",
                    DoubleValue (0.0025),
-                   MakeDoubleAccessor (&SFBQueueDisc::m_increment),
+                   MakeDoubleAccessor (&SfbQueueDisc::m_increment),
                    MakeDoubleChecker<double> ())
     .AddAttribute ("Decrement",
                    "Pmark decrement Value",
                    DoubleValue (0.00025),
-                   MakeDoubleAccessor (&SFBQueueDisc::m_decrement),
+                   MakeDoubleAccessor (&SfbQueueDisc::m_decrement),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("RehashInterval",
+                   "Time interval after which hash will be changed",
+                   TimeValue (Seconds (600)),
+                   MakeTimeAccessor (&SfbQueueDisc::m_rehashInterval),
+                   MakeTimeChecker ())
+    .AddAttribute ("PenaltyRate",
+                   "Penalty rate value packet per second",
+                   UintegerValue (10),
+                   MakeUintegerAccessor (&SfbQueueDisc::m_penaltyRate),
+                   MakeUintegerChecker<uint32_t> ())
+    .AddAttribute ("PenaltyBurst",
+                   "Penalty burst value ",
+                   UintegerValue (20),
+                   MakeUintegerAccessor (&SfbQueueDisc::m_penaltyBurst),
+                   MakeUintegerChecker<uint32_t> ())
+    .AddAttribute ("TokenAvail",
+                   "Token available",
+                   UintegerValue (20),
+                   MakeUintegerAccessor (&SfbQueueDisc::m_tokenAvail),
+                   MakeUintegerChecker<uint32_t> ())
+    .AddAttribute ("TargetFraction",
+                   "target bucket length",
+                   DoubleValue (0.75),
+                   MakeDoubleAccessor (&SfbQueueDisc::m_targetFraction),
                    MakeDoubleChecker<double> ())
   ;
-
   return tid;
 }
 
-SFBQueueDisc::SFBQueueDisc () :
-  QueueDisc ()
+SfbQueueDisc::SfbQueueDisc ()
+  : QueueDisc ()
 {
   NS_LOG_FUNCTION (this);
   m_uv = CreateObject<UniformRandomVariable> ();
+  m_pertbUV = CreateObject<UniformRandomVariable> ();
 }
 
-SFBQueueDisc::~SFBQueueDisc ()
+SfbQueueDisc::~SfbQueueDisc ()
 {
   NS_LOG_FUNCTION (this);
 }
 
 void
-SFBQueueDisc::DoDispose (void)
+SfbQueueDisc::DoDispose (void)
 {
   NS_LOG_FUNCTION (this);
   m_uv = 0;
@@ -93,150 +119,214 @@ SFBQueueDisc::DoDispose (void)
 }
 
 void
-SFBQueueDisc::SetMode (Queue::QueueMode mode)
+SfbQueueDisc::SetMode (QueueDiscMode mode)
 {
   NS_LOG_FUNCTION (this << mode);
   m_mode = mode;
 }
 
-Queue::QueueMode
-SFBQueueDisc::GetMode (void)
+SfbQueueDisc::QueueDiscMode
+SfbQueueDisc::GetMode (void)
 {
   NS_LOG_FUNCTION (this);
   return m_mode;
 }
 
 void
-SFBQueueDisc::SetQueueLimit (uint32_t lim)
+SfbQueueDisc::SetQueueLimit (uint32_t lim)
 {
   NS_LOG_FUNCTION (this << lim);
   m_queueLimit = lim;
 }
 
 uint32_t
-SFBQueueDisc::GetQueueSize (void)
+SfbQueueDisc::GetQueueSize (void)
 {
   NS_LOG_FUNCTION (this);
-  if (GetMode () == Queue::QUEUE_MODE_BYTES)
+  if (GetMode () == QUEUE_DISC_MODE_BYTES)
     {
       return GetInternalQueue (0)->GetNBytes ();
     }
-  else if (GetMode () == Queue::QUEUE_MODE_PACKETS)
+  else if (GetMode () == QUEUE_DISC_MODE_PACKETS)
     {
       return GetInternalQueue (0)->GetNPackets ();
     }
   else
     {
-      NS_ABORT_MSG ("Unknown Blue mode.");
+      NS_ABORT_MSG ("Unknown SFB mode.");
     }
 }
 
-SFBQueueDisc::Stats
-SFBQueueDisc::GetStats ()
-{
-  NS_LOG_FUNCTION (this);
-  return m_stats;
-}
-
 int64_t
-SFBQueueDisc::AssignStreams (int64_t stream)
+SfbQueueDisc::AssignStreams (int64_t stream)
 {
   NS_LOG_FUNCTION (this << stream);
   m_uv->SetStream (stream);
+  m_pertbUV->SetStream (stream + 1);
   return 1;
 }
 
 void
-SFBQueueDisc::InitializeParams (void)
+SfbQueueDisc::InitializeParams (void)
 {
-  InitializeBins();
-  m_stats.forcedDrop = 0;
-  m_stats.unforcedDrop = 0;
-  m_binSize = 1.0 / SFB_BINS * GetQueueSize(); 
+  InitializeBins ();
+  m_binSize = 1.0 / SFB_BINS * GetQueueSize ();
+  m_target = m_binSize * m_targetFraction;
+  m_lastSet = Simulator::Now ();
 }
 
 void
-SFBQueueDisc::InitializeBins (void)
+SfbQueueDisc::InitializeBins (void)
 {
+  m_bins.perturbation = m_pertbUV->GetInteger ();
+  m_lastSet = Simulator::Now ();
   for (uint32_t i = 0; i < SFB_LEVELS; i++)
     {
       for (uint32_t j = 0; j < SFB_BINS; j++)
         {
-          m_bins[i][j].packets = 0;
-          m_bins[i][j].pmark = 0;
+          m_bins.bins[i][j].packets = 0;
+          m_bins.bins[i][j].pmark = 0;
         }
     }
 }
 
+uint32_t
+SfbQueueDisc::SfbHash (Ptr<QueueDiscItem> item)
+{
+  uint32_t sfbhash = Classify (item);
+  uint32_t buff[2];
+  buff[0] = sfbhash;
+  buff[1] = m_bins.perturbation;
+  sfbhash = Hash32 ((char*) buff,2);
+  return sfbhash;
+}
+
 bool
-SFBQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
+SfbQueueDisc::RateLimit (Ptr<QueueDiscItem> item)
+{
+  NS_LOG_FUNCTION (this);
+  if (m_penaltyRate == 0 || m_penaltyBurst == 0)
+    {
+      return true;
+    }
+
+  if (m_tokenAvail < 1)
+    {
+      double value = std::min (10.0, Simulator::Now ().GetSeconds () - m_tokenTime.GetSeconds ());
+      m_tokenAvail = value * m_penaltyRate;
+
+      if (m_tokenAvail > m_penaltyBurst)
+        {
+          m_tokenAvail = m_penaltyBurst;
+        }
+
+      m_tokenTime = Simulator::Now ();
+      if (m_tokenAvail < 1)
+        {
+          return true;
+        }
+    }
+
+  m_tokenAvail--;
+  return false;
+}
+
+bool
+SfbQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
 {
   NS_LOG_FUNCTION (this << item);
-
   uint32_t nQueued = GetQueueSize ();
-
-  if ((GetMode () == Queue::QUEUE_MODE_PACKETS && nQueued >= m_queueLimit)
-      || (GetMode () == Queue::QUEUE_MODE_BYTES && nQueued + item->GetPacketSize () > m_queueLimit))
+  uint32_t minqlen = m_binSize;
+  if ((GetMode () == QUEUE_DISC_MODE_PACKETS && nQueued >= m_queueLimit)
+      || (GetMode () == QUEUE_DISC_MODE_BYTES && nQueued + item->GetSize () > m_queueLimit))
     {
-      IncrementBinsPmarks(item);
-      m_stats.forcedDrop++;
-      Drop (item);
+      IncrementBinsPmarks (item);
+      DropBeforeEnqueue (item,OVERLIMIT_DROP);
       return false;
     }
 
+  if (m_rehashInterval > 0)
+    {
+      if (Simulator::Now () > (m_lastSet + m_rehashInterval))
+        {
+          m_bins.perturbation = m_pertbUV->GetInteger ();
+          m_lastSet = Simulator::Now ();
+        }
+    }
+
+  uint32_t sfbhash = SfbHash (item);
   for (uint32_t i = 0; i < SFB_LEVELS; i++)
     {
-      uint32_t hashed = 1;//GetHash(i, item);
-      if (m_bins[i][hashed].packets == 0)
+      uint32_t hashed = sfbhash & SFB_BUCKET_MASK;
+      if (m_bins.bins[i][hashed].packets == 0)
         {
-          DecrementBinPmark(i, hashed);
+          DecrementBinPmark (i, hashed);
         }
-      else if (m_bins[i][hashed].packets > m_binSize)
+      else if (m_bins.bins[i][hashed].packets > m_target)
         {
-          IncrementBinPmark(i, hashed);
+          IncrementBinPmark (i, hashed);
         }
+
+      if (m_binSize > m_bins.bins[i][hashed].packets)
+        {
+          minqlen = m_bins.bins[i][hashed].packets;
+        }
+
+      sfbhash >>= SFB_BUCKET_SHIFT;
+    }
+
+  if (minqlen >= m_binSize)
+    {
+      DropBeforeEnqueue (item, BUCKETLIMIT_DROP);
+      return false;
     }
 
   if (GetMinProbability (item) == 1.0)
     {
-      //rateLimit();
+      if (RateLimit (item))
+        {
+          DropBeforeEnqueue (item, RATELIMIT_DROP);
+          return false;
+        }
     }
   else if (DropEarly (item))
     {
-      Drop (item);
+      DropBeforeEnqueue (item, TARGET_EXCED_DROP);
       return false;
     }
 
   bool isEnqueued = GetInternalQueue (0)->Enqueue (item);
   if (isEnqueued == true)
     {
-      IncrementBinsQueueLength(item);
+      IncrementBinsQueueLength (item);
     }
   return isEnqueued;
 }
 
 double
-SFBQueueDisc::GetMinProbability (Ptr<QueueDiscItem> item)
+SfbQueueDisc::GetMinProbability (Ptr<QueueDiscItem> item)
 {
   NS_LOG_FUNCTION (this);
   double u =  1.0;
+  uint32_t sfbhash = SfbHash (item);
   for (uint32_t i = 0; i < SFB_LEVELS; i++)
     {
-      uint32_t hashed = 1;//GetHash(i, item);
-      if (u > m_bins[i][hashed].pmark)
+      uint32_t hashed = sfbhash & SFB_BUCKET_MASK;
+      if (u > m_bins.bins[i][hashed].pmark)
         {
-          u = m_bins[i][hashed].pmark;
+          u = m_bins.bins[i][hashed].pmark;
         }
+      sfbhash >>= SFB_BUCKET_SHIFT;
     }
   return u;
 }
 
 bool
-SFBQueueDisc::DropEarly (Ptr<QueueDiscItem> item)
+SfbQueueDisc::DropEarly (Ptr<QueueDiscItem> item)
 {
   NS_LOG_FUNCTION (this);
   double u =  m_uv->GetValue ();
-  if (u <= GetMinProbability(item))
+  if (u <= GetMinProbability (item))
     {
       return true;
     }
@@ -244,65 +334,73 @@ SFBQueueDisc::DropEarly (Ptr<QueueDiscItem> item)
 }
 
 void
-SFBQueueDisc::IncrementBinsQueueLength (Ptr<QueueDiscItem> item)
+SfbQueueDisc::IncrementBinsQueueLength (Ptr<QueueDiscItem> item)
 {
+
+  uint32_t sfbhash = SfbHash (item);
   for (uint32_t i = 0; i < SFB_LEVELS; i++)
     {
-      uint32_t hashed = 1;//GetHash(i, item);
-      m_bins[i][hashed].packets++;
-      if (m_bins[i][hashed].packets > m_binSize)
+      uint32_t hashed = sfbhash & SFB_BUCKET_MASK;
+      m_bins.bins[i][hashed].packets++;
+      if (m_bins.bins[i][hashed].packets > m_binSize)
         {
-          IncrementBinPmark(i, hashed);
+          IncrementBinPmark (i, hashed);
         }
+      sfbhash >>= SFB_BUCKET_SHIFT;
     }
 }
 
 void
-SFBQueueDisc::IncrementBinsPmarks (Ptr<QueueDiscItem> item)
+SfbQueueDisc::IncrementBinsPmarks (Ptr<QueueDiscItem> item)
 {
+  uint32_t sfbhash = SfbHash (item);
   for (uint32_t i = 0; i < SFB_LEVELS; i++)
     {
-      uint32_t hashed = 1;//GetHash(i, item);
-      IncrementBinPmark(i, hashed);
+      uint32_t hashed = sfbhash & SFB_BUCKET_MASK;
+      IncrementBinPmark (i, hashed);
+      sfbhash >>= SFB_BUCKET_SHIFT;
     }
 }
 
 void
-SFBQueueDisc::IncrementBinPmark (uint32_t i, uint32_t j)
+SfbQueueDisc::IncrementBinPmark (uint32_t i, uint32_t j)
 {
-  m_bins[i][j].pmark += m_increment;
-  if (m_bins[i][j].pmark > 1.0)
+  m_bins.bins[i][j].pmark += m_increment;
+  if (m_bins.bins[i][j].pmark > 1.0)
     {
-      m_bins[i][j].pmark = 1.0;
+      m_bins.bins[i][j].pmark = 1.0;
     }
 }
 
 void
-SFBQueueDisc::DecrementBinsQueueLength (Ptr<QueueDiscItem> item)
+SfbQueueDisc::DecrementBinsQueueLength (Ptr<QueueDiscItem> item)
 {
+  uint32_t sfbhash = SfbHash (item);
   for (uint32_t i = 0; i < SFB_LEVELS; i++)
     {
-      uint32_t hashed = 1;//GetHash(i, item);
-      m_bins[i][hashed].packets--;
-      if (m_bins[i][hashed].packets < 0)
+      uint32_t hashed = sfbhash & SFB_BUCKET_MASK;
+      m_bins.bins[i][hashed].packets--;
+      if (m_bins.bins[i][hashed].packets < 0)
         {
-          m_bins[i][hashed].packets = 0;
+          m_bins.bins[i][hashed].packets = 0;
         }
+      sfbhash >>= SFB_BUCKET_SHIFT;
     }
 }
 
 void
-SFBQueueDisc::DecrementBinPmark (uint32_t i, uint32_t j)
+SfbQueueDisc::DecrementBinPmark (uint32_t i, uint32_t j)
 {
-  m_bins[i][j].pmark -= m_decrement;
-  if (m_bins[i][j].pmark < 0.0)
+  m_bins.bins[i][j].pmark -= m_decrement;
+  if (m_bins.bins[i][j].pmark < 0.0)
     {
-      m_bins[i][j].pmark = 0.0;
+      m_bins.bins[i][j].pmark = 0.0;
     }
 }
+
 
 Ptr<QueueDiscItem>
-SFBQueueDisc::DoDequeue (void)
+SfbQueueDisc::DoDequeue (void)
 {
   NS_LOG_FUNCTION (this);
 
@@ -312,14 +410,14 @@ SFBQueueDisc::DoDequeue (void)
 
   if (item)
     {
-      DecrementBinsQueueLength(item);
+      DecrementBinsQueueLength (item);
     }
 
   return item;
 }
 
 Ptr<const QueueDiscItem>
-SFBQueueDisc::DoPeek () const
+SfbQueueDisc::DoPeek () const
 {
   NS_LOG_FUNCTION (this);
   if (GetInternalQueue (0)->IsEmpty ())
@@ -337,12 +435,12 @@ SFBQueueDisc::DoPeek () const
 }
 
 bool
-SFBQueueDisc::CheckConfig (void)
+SfbQueueDisc::CheckConfig (void)
 {
   NS_LOG_FUNCTION (this);
   if (GetNQueueDiscClasses () > 0)
     {
-      NS_LOG_ERROR ("SFBQueueDisc cannot have classes");
+      NS_LOG_ERROR ("SfbQueueDisc cannot have classes");
       return false;
     }
 
@@ -350,19 +448,21 @@ SFBQueueDisc::CheckConfig (void)
     {
       Ptr<SFBIpv4PacketFilter> ipv4Filter = CreateObject<SFBIpv4PacketFilter> ();
       AddPacketFilter (ipv4Filter);
+      Ptr<SFBIpv6PacketFilter> ipv6Filter = CreateObject<SFBIpv6PacketFilter> ();
+      AddPacketFilter (ipv6Filter);
     }
 
-  if (GetNPacketFilters () != 1)
+  if (GetNPacketFilters () != 2)
     {
-      NS_LOG_ERROR ("SFBQueueDisc needs 1 filter");
+      NS_LOG_ERROR ("SfbQueueDisc needs 1 filter");
       return false;
     }
 
   if (GetNInternalQueues () == 0)
     {
       // create a DropTail queue
-      Ptr<Queue> queue = CreateObjectWithAttributes<DropTailQueue> ("Mode", EnumValue (m_mode));
-      if (m_mode == Queue::QUEUE_MODE_PACKETS)
+      Ptr<InternalQueue> queue = CreateObjectWithAttributes<DropTailQueue<QueueDiscItem> > ("Mode", EnumValue (m_mode));
+      if (m_mode == QUEUE_DISC_MODE_PACKETS)
         {
           queue->SetMaxPackets (m_queueLimit);
         }
@@ -375,18 +475,19 @@ SFBQueueDisc::CheckConfig (void)
 
   if (GetNInternalQueues () != 1)
     {
-      NS_LOG_ERROR ("SFBQueueDisc needs 1 internal queue");
+      NS_LOG_ERROR ("SfbQueueDisc needs 1 internal queue");
       return false;
     }
 
-  if (GetInternalQueue (0)->GetMode () != m_mode)
+  if ((GetInternalQueue (0)->GetMode () == QueueBase::QUEUE_MODE_PACKETS && m_mode == QUEUE_DISC_MODE_BYTES)
+      || (GetInternalQueue (0)->GetMode () == QueueBase::QUEUE_MODE_BYTES && m_mode == QUEUE_DISC_MODE_PACKETS))
     {
-      NS_LOG_ERROR ("The mode of the provided queue does not match the mode set on the SFBQueueDisc");
+      NS_LOG_ERROR ("The mode of the provided queue does not match the mode set on the SfbQueueDisc");
       return false;
     }
 
-  if ((m_mode ==  Queue::QUEUE_MODE_PACKETS && GetInternalQueue (0)->GetMaxPackets () < m_queueLimit)
-      || (m_mode ==  Queue::QUEUE_MODE_BYTES && GetInternalQueue (0)->GetMaxBytes () < m_queueLimit))
+  if ((m_mode ==  QUEUE_DISC_MODE_PACKETS && GetInternalQueue (0)->GetMaxPackets () < m_queueLimit)
+      || (m_mode ==  QUEUE_DISC_MODE_BYTES && GetInternalQueue (0)->GetMaxBytes () < m_queueLimit))
     {
       NS_LOG_ERROR ("The size of the internal queue is less than the queue disc limit");
       return false;

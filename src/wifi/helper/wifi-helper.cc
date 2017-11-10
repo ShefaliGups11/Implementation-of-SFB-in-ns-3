@@ -35,6 +35,15 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("WifiHelper");
 
+/**
+ * ASCII trace Phy transmit sink with context
+ * \param stream the output stream
+ * \param context the context name
+ * \param p the packet
+ * \param mode the wifi mode
+ * \param preamble the wifi preamble
+ * \param txLevel the transmit power level
+ */
 static void
 AsciiPhyTransmitSinkWithContext (
   Ptr<OutputStreamWrapper> stream,
@@ -48,6 +57,14 @@ AsciiPhyTransmitSinkWithContext (
   *stream->GetStream () << "t " << Simulator::Now ().GetSeconds () << " " << context << " " << *p << std::endl;
 }
 
+/**
+ * ASCII trace Phy transmit sink without context
+ * \param stream the output stream
+ * \param p the packet
+ * \param mode the wifi mode
+ * \param preamble the wifi preamble
+ * \param txLevel the transmit power level
+ */
 static void
 AsciiPhyTransmitSinkWithoutContext (
   Ptr<OutputStreamWrapper> stream,
@@ -60,6 +77,15 @@ AsciiPhyTransmitSinkWithoutContext (
   *stream->GetStream () << "t " << Simulator::Now ().GetSeconds () << " " << *p << std::endl;
 }
 
+/**
+ * ASCII trace Phy receive sink with context
+ * \param stream the output stream
+ * \param context the context name
+ * \param p the packet
+ * \param snr the SNR
+ * \param mode the wifi mode
+ * \param preamble the wifi preamble
+ */
 static void
 AsciiPhyReceiveSinkWithContext (
   Ptr<OutputStreamWrapper> stream,
@@ -73,6 +99,14 @@ AsciiPhyReceiveSinkWithContext (
   *stream->GetStream () << "r " << Simulator::Now ().GetSeconds () << " " << context << " " << *p << std::endl;
 }
 
+/**
+ * ASCII trace Phy receive sink without context
+ * \param stream the output stream
+ * \param p the packet
+ * \param snr the SNR
+ * \param mode the wifi mode
+ * \param preamble the wifi preamble
+ */
 static void
 AsciiPhyReceiveSinkWithoutContext (
   Ptr<OutputStreamWrapper> stream,
@@ -102,14 +136,14 @@ WifiPhyHelper::Set (std::string name, const AttributeValue &v)
 
 void
 WifiPhyHelper::SetErrorRateModel (std::string name,
-                                      std::string n0, const AttributeValue &v0,
-                                      std::string n1, const AttributeValue &v1,
-                                      std::string n2, const AttributeValue &v2,
-                                      std::string n3, const AttributeValue &v3,
-                                      std::string n4, const AttributeValue &v4,
-                                      std::string n5, const AttributeValue &v5,
-                                      std::string n6, const AttributeValue &v6,
-                                      std::string n7, const AttributeValue &v7)
+                                  std::string n0, const AttributeValue &v0,
+                                  std::string n1, const AttributeValue &v1,
+                                  std::string n2, const AttributeValue &v2,
+                                  std::string n3, const AttributeValue &v3,
+                                  std::string n4, const AttributeValue &v4,
+                                  std::string n5, const AttributeValue &v5,
+                                  std::string n6, const AttributeValue &v6,
+                                  std::string n7, const AttributeValue &v7)
 {
   m_errorRateModel = ObjectFactory ();
   m_errorRateModel.SetTypeId (name);
@@ -159,21 +193,21 @@ WifiPhyHelper::PcapSniffTxEvent (
             frameFlags |= RadiotapHeader::FRAME_FLAG_SHORT_PREAMBLE;
           }
 
-        if (txVector.IsShortGuardInterval ())
+        if (txVector.GetGuardInterval () == 400)
           {
             frameFlags |= RadiotapHeader::FRAME_FLAG_SHORT_GUARD;
           }
 
         header.SetFrameFlags (frameFlags);
-        
+
         uint32_t rate;
-        if (txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_HT || txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_VHT)
+        if (txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_HT || txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_VHT || txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_HE)
           {
             rate = 128 + txVector.GetMode ().GetMcsValue ();
           }
         else
           {
-            rate = txVector.GetMode ().GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1) * txVector.GetNss () / 500000;
+            rate = txVector.GetMode ().GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1) * txVector.GetNss () / 500000;
           }
         header.SetRate (rate);
 
@@ -219,7 +253,7 @@ WifiPhyHelper::PcapSniffTxEvent (
               }
 
             mcsKnown |= RadiotapHeader::MCS_KNOWN_GUARD_INTERVAL;
-            if (txVector.IsShortGuardInterval ())
+            if (txVector.GetGuardInterval () == 400)
               {
                 mcsFlags |= RadiotapHeader::MCS_FLAGS_GUARD_INTERVAL;
               }
@@ -285,7 +319,7 @@ WifiPhyHelper::PcapSniffTxEvent (
               }
 
             vhtKnown |= RadiotapHeader::VHT_KNOWN_GUARD_INTERVAL;
-            if (txVector.IsShortGuardInterval ())
+            if (txVector.GetGuardInterval () == 400)
               {
                 vhtFlags |= RadiotapHeader::VHT_FLAGS_GUARD_INTERVAL;
               }
@@ -360,21 +394,21 @@ WifiPhyHelper::PcapSniffRxEvent (
             frameFlags |= RadiotapHeader::FRAME_FLAG_SHORT_PREAMBLE;
           }
 
-        if (txVector.IsShortGuardInterval ())
+        if (txVector.GetGuardInterval () == 400)
           {
             frameFlags |= RadiotapHeader::FRAME_FLAG_SHORT_GUARD;
           }
 
         header.SetFrameFlags (frameFlags);
-        
+
         uint32_t rate;
-        if (txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_HT || txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_VHT)
+        if (txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_HT || txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_VHT || txVector.GetMode ().GetModulationClass () == WIFI_MOD_CLASS_HE)
           {
             rate = 128 + txVector.GetMode ().GetMcsValue ();
           }
         else
           {
-            rate = txVector.GetMode ().GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1) * txVector.GetNss () / 500000;
+            rate = txVector.GetMode ().GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1) * txVector.GetNss () / 500000;
           }
         header.SetRate (rate);
 
@@ -423,7 +457,7 @@ WifiPhyHelper::PcapSniffRxEvent (
               }
 
             mcsKnown |= RadiotapHeader::MCS_KNOWN_GUARD_INTERVAL;
-            if (txVector.IsShortGuardInterval ())
+            if (txVector.GetGuardInterval () == 400)
               {
                 mcsFlags |= RadiotapHeader::MCS_FLAGS_GUARD_INTERVAL;
               }
@@ -490,7 +524,7 @@ WifiPhyHelper::PcapSniffRxEvent (
               }
 
             vhtKnown |= RadiotapHeader::VHT_KNOWN_GUARD_INTERVAL;
-            if (txVector.IsShortGuardInterval ())
+            if (txVector.GetGuardInterval () == 400)
               {
                 vhtFlags |= RadiotapHeader::VHT_FLAGS_GUARD_INTERVAL;
               }
@@ -712,10 +746,12 @@ WifiHelper::SetStandard (enum WifiPhyStandard standard)
 
 NetDeviceContainer
 WifiHelper::Install (const WifiPhyHelper &phyHelper,
-                     const WifiMacHelper &macHelper, NodeContainer c) const
+                     const WifiMacHelper &macHelper,
+                     NodeContainer::Iterator first,
+                     NodeContainer::Iterator last) const
 {
   NetDeviceContainer devices;
-  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+  for (NodeContainer::Iterator i = first; i != last; ++i)
     {
       Ptr<Node> node = *i;
       Ptr<WifiNetDevice> device = CreateObject<WifiNetDevice> ();
@@ -733,6 +769,13 @@ WifiHelper::Install (const WifiPhyHelper &phyHelper,
       NS_LOG_DEBUG ("node=" << node << ", mob=" << node->GetObject<MobilityModel> ());
     }
   return devices;
+}
+
+NetDeviceContainer
+WifiHelper::Install (const WifiPhyHelper &phyHelper,
+                     const WifiMacHelper &macHelper, NodeContainer c) const
+{
+  return Install (phyHelper, macHelper, c.Begin (), c.End ());
 }
 
 NetDeviceContainer

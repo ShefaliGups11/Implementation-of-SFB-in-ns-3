@@ -49,6 +49,10 @@ namespace ns3 {
 class SpectrumWifiPhy : public WifiPhy
 {
 public:
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId (void);
 
   SpectrumWifiPhy ();
@@ -59,7 +63,7 @@ public:
    *
    * \param channel the SpectrumChannel this SpectrumWifiPhy is to be connected to
    */
-  void SetChannel (Ptr<SpectrumChannel> channel);
+  void SetChannel (const Ptr<SpectrumChannel> channel);
   /**
    * Add a channel number to the list of operational channels.  This method
    * is used to support scanning for strongest base station.
@@ -87,7 +91,7 @@ public:
    * \param rxParams Input signal parameters
    */
   void StartRx (Ptr<SpectrumSignalParameters> rxParams);
-  
+
   /**
    * \param packet the packet to send
    * \param txVector the TXVECTOR that has tx parameters such as mode, the transmission mode to use to send
@@ -96,7 +100,7 @@ public:
    * \param txDuration duration of the transmission.
    */
   void StartTx (Ptr<Packet> packet, WifiTxVector txVector, Time txDuration);
-  
+
   /**
    * Method to encapsulate the creation of the WifiSpectrumPhyInterface
    * object (used to bind the WifiSpectrumPhy to a SpectrumChannel) and
@@ -120,7 +124,7 @@ public:
    * Note:  this method may be split into separate SetTx and SetRx
    * methods in the future if the modelling need for this arises
    */
-  void SetAntenna (Ptr<AntennaModel> antenna);
+  void SetAntenna (const Ptr<AntennaModel> antenna);
   /**
    * Get the antenna model used for reception
    *
@@ -135,6 +139,16 @@ public:
   Ptr<const SpectrumModel> GetRxSpectrumModel () const;
 
   /**
+   * \return the width of each band (Hz)
+   */
+  double GetBandBandwidth (void) const;
+
+  /**
+   * \return the width of the guard band (MHz)
+   */
+  uint32_t GetGuardBandwidth (void) const;
+
+  /**
    * Callback invoked when the Phy model starts to process a signal
    *
    * \param signalType Whether signal is WiFi (true) or foreign (false)
@@ -144,13 +158,23 @@ public:
    */
   typedef void (* SignalArrivalCallback) (bool signalType, uint32_t senderNodeId, double rxPower, Time duration);
 
-  virtual Ptr<WifiChannel> GetChannel (void) const;
+  Ptr<Channel> GetChannel (void) const;
 
+  // The following four methods call to the base WifiPhy class method
+  // but also generate a new SpectrumModel if called during runtime
+
+  virtual void SetChannelNumber (uint8_t id);
+
+  virtual void SetFrequency (uint16_t freq);
+
+  virtual void SetChannelWidth (uint8_t channelwidth);
+
+  virtual void ConfigureStandard (WifiPhyStandard standard);
 
 protected:
   // Inherited
-  virtual void DoDispose (void);
-  virtual void DoInitialize (void);
+  void DoDispose (void);
+  void DoInitialize (void);
 
 
 private:
@@ -158,21 +182,27 @@ private:
    * \param centerFrequency center frequency (MHz)
    * \param channelWidth channel width (MHz) of the channel
    * \param txPowerW power in W to spread across the bands
+   * \param modulationClass the modulation class
    * \return Ptr to SpectrumValue
    *
    * This is a helper function to create the right Tx PSD corresponding
    * to the standard in use.
    */
-  Ptr<SpectrumValue> GetTxPowerSpectralDensity (uint16_t centerFrequency, uint8_t channelWidth, double txPowerW) const;
+  Ptr<SpectrumValue> GetTxPowerSpectralDensity (uint16_t centerFrequency, uint8_t channelWidth, double txPowerW, WifiModulationClass modulationClass) const;
+
+  /**
+   * Perform run-time spectrum model change
+   */
+  void ResetSpectrumModel (void);
 
   Ptr<SpectrumChannel> m_channel;        //!< SpectrumChannel that this SpectrumWifiPhy is connected to
   std::vector<uint8_t> m_operationalChannelList; //!< List of possible channels
 
-  Ptr<WifiSpectrumPhyInterface> m_wifiSpectrumPhyInterface;
-  Ptr<AntennaModel> m_antenna;
-  mutable Ptr<const SpectrumModel> m_rxSpectrumModel;
+  Ptr<WifiSpectrumPhyInterface> m_wifiSpectrumPhyInterface; //!< Spectrum phy interface
+  Ptr<AntennaModel> m_antenna; //!< antenna model
+  mutable Ptr<const SpectrumModel> m_rxSpectrumModel; //!< receive spectrum model
   bool m_disableWifiReception;          //!< forces this Phy to fail to sync on any signal
-  TracedCallback<bool, uint32_t, double, Time> m_signalCb;
+  TracedCallback<bool, uint32_t, double, Time> m_signalCb; //!< Signal callback
 
 };
 

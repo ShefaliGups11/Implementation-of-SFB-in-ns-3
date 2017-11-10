@@ -186,6 +186,7 @@ typedef uint8_t WifiInformationElementId;
 // 200 to 220 are reserved
 #define IE_VENDOR_SPECIFIC                      ((WifiInformationElementId)221)
 // 222 to 255 are reserved
+#define IE_HE_CAPABILITIES                      ((WifiInformationElementId)255) //todo: not defined yet in the standard!
 
 
 /**
@@ -268,7 +269,9 @@ public:
   uint16_t GetSerializedSize () const;
 
   // Each subclass must implement these pure virtual functions:
-  /// Own unique Element ID
+  /**
+   * \returns Own unique Element ID
+   */
   virtual WifiInformationElementId ElementId () const = 0;
   /**
    * Length of serialized information (i.e., the length of the body

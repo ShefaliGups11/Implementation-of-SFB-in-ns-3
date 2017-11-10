@@ -35,8 +35,6 @@
 
 using namespace ns3;
 
-using namespace ns3;
-
 NS_LOG_COMPONENT_DEFINE ("lr-wpan-clear-channel-assessment-test");
 
 /**
@@ -312,4 +310,4 @@ LrWpanCcaTestSuite::LrWpanCcaTestSuite ()
   AddTestCase (new LrWpanCcaTestCase, TestCase::QUICK);
 }
 
-static LrWpanCcaTestSuite g_lrWpanCcaTestSuite;
+static LrWpanCcaTestSuite g_lrWpanCcaTestSuite; //!< Static variable for test initialization

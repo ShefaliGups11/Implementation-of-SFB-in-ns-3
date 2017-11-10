@@ -75,7 +75,6 @@ private:
 
   uint32_t m_perturbation; //!< hash perturbation value
 };
-
 /**
  * \ingroup internet
  *

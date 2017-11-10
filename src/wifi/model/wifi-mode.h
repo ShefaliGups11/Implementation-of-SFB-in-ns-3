@@ -57,7 +57,9 @@ enum WifiModulationClass
   /** HT PHY (Clause 20) */
   WIFI_MOD_CLASS_HT,
   /** VHT PHY (Clause 22) */
-  WIFI_MOD_CLASS_VHT
+  WIFI_MOD_CLASS_VHT,
+  /** HE PHY (Clause 26) */
+  WIFI_MOD_CLASS_HE
 };
 
 /**
@@ -105,7 +107,7 @@ public:
   /**
    *
    * \param channelWidth the considered channel width in MHz
-   * \param isShortGuardInterval whether short guard interval is considered or not
+   * \param guardInterval the considered guard interval duration in nanoseconds
    * \param nss the considered number of streams
    *
    * \returns the physical bit rate of this signal.
@@ -113,7 +115,7 @@ public:
    * If a transmission mode uses 1/2 FEC, and if its
    * data rate is 3.25Mbps, the phy rate is 6.5Mbps
    */
-  uint64_t GetPhyRate (uint8_t channelWidth, bool isShortGuardInterval, uint8_t nss) const;
+  uint64_t GetPhyRate (uint8_t channelWidth, uint16_t guardInterval, uint8_t nss) const;
   /**
    * \param txVector the WifiTxVector of the signal
    *
@@ -126,19 +128,19 @@ public:
   /**
    *
    * \param channelWidth the considered channel width in MHz
-   * \param isShortGuardInterval whether short guard interval is considered or not
+   * \param guardInterval the considered guard interval duration in nanoseconds
    * \param nss the considered number of streams
    *
    * \returns the data bit rate of this signal.
    */
-  uint64_t GetDataRate (uint8_t channelWidth, bool isShortGuardInterval, uint8_t nss) const;
+  uint64_t GetDataRate (uint8_t channelWidth, uint16_t guardInterval, uint8_t nss) const;
   /**
    * \param txVector the WifiTxVector of the signal
    *
    * \returns the data bit rate of this signal.
    */
   uint64_t GetDataRate (WifiTxVector txVector) const;
-  /*
+  /**
    * \param channelWidth the considered channel width in MHz
    *
    * \returns the data bit rate of this non-HT or non-VHT signal.
@@ -191,11 +193,13 @@ public:
    */
   uint64_t GetNonHtReferenceRate (void) const;
   /**
+   * \param mode wifi mode
    * \returns true if this WifiMode has a
    * a code rate strictly higher than mode.
    */
   bool IsHigherCodeRate (WifiMode mode) const;
   /**
+   * \param mode wifi mode
    * \returns true if this WifiMode has a
    * a rate strictly higher than mode.
    */
@@ -218,7 +222,9 @@ public:
 
 
 private:
+  /// allow WifiModeFactory class access
   friend class WifiModeFactory;
+  /// allow WifiPhyTag class access
   friend class WifiPhyTag; // access the UID-based constructor
   /**
    * Create a WifiMode from a given unique ID.
@@ -226,9 +232,10 @@ private:
    * \param uid unique ID
    */
   WifiMode (uint32_t uid);
-  uint32_t m_uid;
+  uint32_t m_uid; ///< UID
 };
 
+/// equality operator
 bool operator == (const WifiMode &a, const WifiMode &b);
 std::ostream & operator << (std::ostream & os, const WifiMode &mode);
 std::istream & operator >> (std::istream &is, WifiMode &mode);
@@ -294,6 +301,7 @@ public:
 
 
 private:
+  /// allow WifiMode class access
   friend class WifiMode;
   friend std::istream & operator >> (std::istream &is, WifiMode &mode);
 
@@ -312,12 +320,12 @@ private:
    */
   struct WifiModeItem
   {
-    std::string uniqueUid;
-    WifiModulationClass modClass;
-    uint16_t constellationSize;
-    WifiCodeRate codingRate;
-    bool isMandatory;
-    uint8_t mcsValue;
+    std::string uniqueUid; ///< unique UID
+    WifiModulationClass modClass; ///< modulation class
+    uint16_t constellationSize; ///< constellation size
+    WifiCodeRate codingRate; ///< coding rate
+    bool isMandatory; ///< flag to indicate whether this mode is mandatory
+    uint8_t mcsValue; ///< MCS value
   };
 
   /**
@@ -349,7 +357,7 @@ private:
    * typedef for a vector of WifiModeItem.
    */
   typedef std::vector<WifiModeItem> WifiModeItemList;
-  WifiModeItemList m_itemList;
+  WifiModeItemList m_itemList; ///< item list
 };
 
 } //namespace ns3

@@ -38,14 +38,14 @@ NS_LOG_COMPONENT_DEFINE ("AarfWifiManager");
  */
 struct AarfWifiRemoteStation : public WifiRemoteStation
 {
-  uint32_t m_timer;
-  uint32_t m_success;
-  uint32_t m_failed;
-  bool m_recovery;
-  uint32_t m_retry;
-  uint32_t m_timerTimeout;
-  uint32_t m_successThreshold;
-  uint32_t m_rate;
+  uint32_t m_timer; ///< timer
+  uint32_t m_success; ///< success
+  uint32_t m_failed; ///< failed
+  bool m_recovery; ///< recovery
+  uint32_t m_retry; ///< retry
+  uint32_t m_timerTimeout; ///< timer timeout
+  uint32_t m_successThreshold; ///< success threshold
+  uint32_t m_rate; ///< rate
 };
 
 NS_OBJECT_ENSURE_REGISTERED (AarfWifiManager);
@@ -81,11 +81,17 @@ AarfWifiManager::GetTypeId (void)
                    UintegerValue (10),
                    MakeUintegerAccessor (&AarfWifiManager::m_minSuccessThreshold),
                    MakeUintegerChecker<uint32_t> ())
+    .AddTraceSource ("Rate",
+                     "Traced value for rate changes (b/s)",
+                     MakeTraceSourceAccessor (&AarfWifiManager::m_currentRate),
+                     "ns3::TracedValueCallback::Uint64")
   ;
   return tid;
 }
 
 AarfWifiManager::AarfWifiManager ()
+  : WifiRemoteStationManager (),
+    m_currentRate (0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -239,7 +245,12 @@ AarfWifiManager::DoGetDataTxVector (WifiRemoteStation *st)
       channelWidth = 20;
     }
   WifiMode mode = GetSupported (station, station->m_rate);
-  return WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), false, 1, 1, 0, channelWidth, GetAggregation (station), false);
+  if (m_currentRate != mode.GetDataRate (channelWidth))
+    {
+      NS_LOG_DEBUG ("New datarate: " << mode.GetDataRate (channelWidth));
+      m_currentRate = mode.GetDataRate (channelWidth);
+    }
+  return WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), 800, 1, 1, 0, channelWidth, GetAggregation (station), false);
 }
 
 WifiTxVector
@@ -265,7 +276,7 @@ AarfWifiManager::DoGetRtsTxVector (WifiRemoteStation *st)
     {
       mode = GetNonErpSupported (station, 0);
     }
-  rtsTxVector = WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), false, 1, 1, 0, channelWidth, GetAggregation (station), false);
+  rtsTxVector = WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), 800, 1, 1, 0, channelWidth, GetAggregation (station), false);
   return rtsTxVector;
 }
 
@@ -293,6 +304,16 @@ AarfWifiManager::SetVhtSupported (bool enable)
   if (enable)
     {
       NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support VHT rates");
+    }
+}
+
+void
+AarfWifiManager::SetHeSupported (bool enable)
+{
+  //HE is not supported by this algorithm.
+  if (enable)
+    {
+      NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support HE rates");
     }
 }
 

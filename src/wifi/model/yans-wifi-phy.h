@@ -61,7 +61,7 @@ public:
    *
    * \param channel the YansWifiChannel this YansWifiPhy is to be connected to
    */
-  void SetChannel (Ptr<YansWifiChannel> channel);
+  void SetChannel (const Ptr<YansWifiChannel> channel);
 
   /**
    * \param packet the packet to send
@@ -72,7 +72,7 @@ public:
    */
   void StartTx (Ptr<Packet> packet, WifiTxVector txVector, Time txDuration);
 
-  virtual Ptr<WifiChannel> GetChannel (void) const;
+  virtual Ptr<Channel> GetChannel (void) const;
 
 
 protected:
