@@ -12,7 +12,7 @@ Stochastic Fair Blue[2] is a classless qdisc to manage congestion based on packe
 
 ## SFB example
 
-*An example program for Sfb has been provided in
+ An example program for Sfb has been provided in
 
 src/traffic-control/examples/sfb-example.cc
 
