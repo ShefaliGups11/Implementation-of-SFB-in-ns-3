@@ -16,13 +16,15 @@
 
 src/traffic-control/examples/sfb-example.cc
 
-and should be executed as
+  and should be executed as
 
-./waf --run "sfb-example"
+  ./waf --run "sfb-example"
 
 # References:
 [1]http://www.thefengs.com/wuchang/blue/CSE-TR-387-99.pdf
+
 [2]The BLUE Active Queue Management Algorithms (https://mipse.umich.edu/cse/awards/pdfs/blue_active_queue.pdf)
+
 [3]https://www.nsnam.org/ns-3.27/
 
 
